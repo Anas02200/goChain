@@ -1,12 +1,14 @@
 package wallet
 
 import (
+	"bytes"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/sha256"
-	"golang.org/x/crypto/ripemd160"
 	"log"
+
+	"golang.org/x/crypto/ripemd160"
 )
 
 const (
@@ -30,21 +32,26 @@ func (w Wallet) Address() []byte {
 
 	return address
 }
+
 func NewKeyPair() (ecdsa.PrivateKey, []byte) {
 	curve := elliptic.P256()
+
 	private, err := ecdsa.GenerateKey(curve, rand.Reader)
 	if err != nil {
 		log.Panic(err)
 	}
+
 	pub := append(private.PublicKey.X.Bytes(), private.PublicKey.Y.Bytes()...)
 	return *private, pub
 }
+
 func MakeWallet() *Wallet {
 	private, public := NewKeyPair()
 	wallet := Wallet{private, public}
 
 	return &wallet
 }
+
 func PublicKeyHash(pubKey []byte) []byte {
 	pubHash := sha256.Sum256(pubKey)
 
@@ -64,4 +71,14 @@ func Checksum(payload []byte) []byte {
 	secondHash := sha256.Sum256(firstHash[:])
 
 	return secondHash[:checksumLength]
+}
+
+func ValidateAddress(address string) bool {
+	pubKeyHash := Base58Decode([]byte(address))
+	actualChecksum := pubKeyHash[len(pubKeyHash)-checksumLength:]
+	version := pubKeyHash[0]
+	pubKeyHash = pubKeyHash[1 : len(pubKeyHash)-checksumLength]
+	targetChecksum := Checksum(append([]byte{version}, pubKeyHash...))
+
+	return bytes.Compare(actualChecksum, targetChecksum) == 0
 }
